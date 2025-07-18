@@ -1,0 +1,39 @@
+{% extends 'calculator/base.html' %}
+
+{% block title %}{% if form.instance.pk %}Editar Produto{% else %}Adicionar Produto{% endif %}{% endblock %}
+
+{% block content %}
+<header class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-800">
+        {% if form.instance.pk %}Editar Produto{% else %}Adicionar Novo Produto{% endif %}
+    </h1>
+</header>
+
+<div class="bg-white p-6 rounded-lg card-shadow">
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="space-y-4">
+            <div>
+                <label for="{{ form.nome.id_for_label }}" class="block text-sm font-medium text-slate-700">Nome do Produto</label>
+                {{ form.nome }}
+            </div>
+            <div>
+                <label for="{{ form.sku.id_for_label }}" class="block text-sm font-medium text-slate-700">SKU (Código)</label>
+                {{ form.sku }}
+            </div>
+            <div>
+                <label for="{{ form.custo_producao.id_for_label }}" class="block text-sm font-medium text-slate-700">Custo de Produção (R$)</label>
+                {{ form.custo_producao }}
+            </div>
+        </div>
+
+        <div class="mt-6 flex items-center gap-4">
+            <button type="submit" class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded-lg shadow">
+                Salvar Produto
+            </button>
+            <a href="{% url 'produto_list' %}" class="text-gray-600 hover:text-gray-900">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+# Arquivos de Cache do Python
+__pycache__/
+*.pyc
+
+# Banco de Dados do Django
+db.sqlite3
+*.sqlite3
+
+# Pasta do Ambiente Virtual
+venv/
+.venv/
+env/
+.env
+
+# Arquivos de IDEs (exemplo para VS Code)
+.vscode/
+
+# Arquivos de sistema operacional
+.DS_Store
+Thumbs.db
