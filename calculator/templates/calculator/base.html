@@ -60,8 +60,12 @@
             <header class="bg-white shadow-sm p-4 flex justify-end items-center">
                 {% if user.is_authenticated %}
                     <span class="text-gray-700 mr-4">Olá, {{ user.get_full_name|default:user.username }}</span>
-                    <a href="{% url 'logout' %}" class="text-sm font-medium text-sky-600 hover:text-sky-800">Sair</a>
-                {% else %}
+                    <form action="{% url 'logout' %}" method="post" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="...estilos...">
+                            Sair
+                        </button>
+                    </form>                {% else %}
                     <a href="{% url 'login' %}" class="text-sm font-medium text-sky-600 hover:text-sky-800">Entrar</a>
                 {% endif %}
             </header>
