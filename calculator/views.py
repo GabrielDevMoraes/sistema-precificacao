@@ -66,13 +66,14 @@ def calculate_api_view(request):
         preco_venda_final = custo_total_produto + lucro_bruto_valor + frete_venda_valor
         
         # ... (resto da lógica de cálculo detalhada) ...
-        custo_operacional_pct = get_float('custo_operacional') / 100
+        
         tx_adm_pct = get_float('tx_adm') / 100
         irpj_csll_pct = get_float('irpj_csll') / 100
         comissao_pct = get_float('comissao') / 100
         frete_leve_pct = 0.05 if get_bool('frete_leve') else 0
         frete_pesado_pct = 0.10 if get_bool('frete_pesado') else 0
         pis_venda = 0.0065
+        custo_operacional_pct = 0.05
         cofins_venda = 0.03
         estado_origem = data.get('estado_origem')
         estado_destino = data.get('estado_destino')
