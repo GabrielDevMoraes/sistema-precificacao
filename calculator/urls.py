@@ -6,6 +6,10 @@ urlpatterns = [
     # Páginas existentes
     path('', views.dashboard_view, name='dashboard'),
     path('calculadora/', views.calculator_view, name='calculator'),
+    path('api/calculate/', views.calculate_api_view, name='calculate_api'),
+    
+    # --- ADICIONE ESTA LINHA ---
+    path('api/search_ncm/', views.search_ncm_api_view, name='search_ncm_api'),
     
     # NOVAS URLs PARA GESTÃO DE PRODUTOS
     path('produtos/', views.produto_list_view, name='produto_list'),
