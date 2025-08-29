@@ -1,6 +1,5 @@
 {% extends 'calculator/base.html' %}
 
-
 {% block title %}Calculadora de Preços{% endblock %}
 
 {% block content %}
@@ -9,7 +8,6 @@
         <div id="tela-custo-produto" class="bg-white p-6 rounded-lg card-shadow">
             <h2 class="text-2xl font-bold text-sky-700 border-b pb-2 mb-4">1. Custo do Produto</h2>
             <div class="space-y-4">
-
                 <div>
                     <label for="produto" class="block text-sm font-medium text-slate-700">Selecione um Produto ou Digite Manualmente</label>
                     <select id="produto" class="mt-1 block w-full p-2 rounded-md border-slate-300 shadow-sm">
@@ -20,7 +18,6 @@
                         {% endfor %}
                     </select>
                 </div>
-
                 <div id="manual-entry-fields" class="hidden space-y-4 border-t pt-4">
                     <div>
                         <label for="manual-product-name" class="block text-sm font-medium text-slate-700">Nome do Produto (Manual)</label>
@@ -31,9 +28,7 @@
                         <input type="number" id="manual-product-cost" placeholder="0.00" class="mt-1 block w-full p-2 rounded-md border-slate-300 shadow-sm">
                     </div>
                 </div>
-
                 <input type="hidden" id="custo-mp">
-
                 <div>
                     <label for="ipi" class="block text-sm font-medium text-slate-700">IPI (%)</label>
                     <input type="number" id="ipi" value="0" step="0.01" class="mt-1 block w-full p-2 rounded-md border-slate-300 shadow-sm">
@@ -58,12 +53,34 @@
                     <label for="margem-bruta" class="block text-sm font-medium text-slate-700">Margem Bruta / Markup (%)</label>
                     <input type="number" id="margem-bruta" value="140" class="mt-1 block w-full p-2 rounded-md border-slate-300 shadow-sm">
                 </div>
-                <h3 class="section-title">Custos sobre a Venda (%) (Para Análise)</h3>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label for="custo-operacional" class="block text-sm font-medium text-slate-700">Custo Operacional</label>
-                        <input type="number" id="custo-operacional" value="5" step="0.01" class="mt-1 block w-full p-2 rounded-md border-slate-300 shadow-sm">
+                <h3 class="section-title">Substituição Tributária (ST)</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4">
+                    <div class="md:col-span-2">
+                        <label for="ncm-search" class="block text-sm font-medium text-slate-700">Pesquisar NCM (Sefaz-MT)</label>
+                        <input type="text" id="ncm-search" placeholder="Digite o NCM" class="mt-1 block w-full p-2 rounded-md border-slate-300 shadow-sm">
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-transparent">.</label>
+                        <button type="button" id="search-ncm-btn" class="w-full bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700">Buscar MVA</button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label for="mva" class="block text-sm font-medium text-slate-700">MVA (%)</label>
+                        <input type="number" id="mva" value="0" step="0.01" class="mt-1 block w-full p-2 rounded-md border-slate-300 shadow-sm">
+                    </div>
+                    <div>
+                        <label for="icms-proprio" class="block text-sm font-medium text-slate-700">ICMS Próprio (%)</label>
+                        <input type="number" id="icms-proprio" value="4" step="0.01" class="mt-1 block w-full p-2 rounded-md border-slate-300 shadow-sm">
+                    </div>
+                    <div>
+                        <label for="icms-st-aliquota" class="block text-sm font-medium text-slate-700">Alíquota ICMS-ST (%)</label>
+                        <input type="number" id="icms-st-aliquota" value="17" step="0.01" class="mt-1 block w-full p-2 rounded-md border-slate-300 shadow-sm">
+                    </div>
+                </div>
+
+                <h3 class="section-title">Custos sobre a Venda (%) (Para Análise)</h3>
+                <div class="grid grid-cols-2 gap-4 border-t pt-4">
                     <div>
                         <label for="tx-adm" class="block text-sm font-medium text-slate-700">TX. ADM</label>
                         <input type="number" id="tx-adm" value="1.2" step="0.01" class="mt-1 block w-full p-2 rounded-md border-slate-300 shadow-sm">
@@ -80,33 +97,17 @@
                     <label class="checkbox-label p-2 bg-slate-50 rounded-md"><input type="checkbox" id="frete-pesado">Frete Pesado (10%)</label>
                 </div>
                 <h3 class="section-title">Impostos e Taxas de Venda (Para Análise)</h3>
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-2 gap-4 border-t pt-4">
                     <div>
                         <label for="estado-origem" class="block text-sm font-medium text-slate-700">Estado de Origem</label>
                         <select id="estado-origem" class="mt-1 block w-full p-2 rounded-md border-slate-300 shadow-sm">
-                            {% for state in origem_states %}
-                                <option value="{{ state }}">
-                                    {% if state == 'NENHUM' %}
-                                        Nenhum / Não Aplicar
-                                    {% else %}
-                                        {{ state }}
-                                    {% endif %}
-                                </option>
-                            {% endfor %}
+                            {% for state in origem_states %}<option value="{{ state }}">{% if state == 'NENHUM' %}Nenhum / Não Aplicar{% else %}{{ state }}{% endif %}</option>{% endfor %}
                         </select>
                     </div>
                     <div>
                         <label for="estado-destino" class="block text-sm font-medium text-slate-700">Estado de Destino</label>
                         <select id="estado-destino" class="mt-1 block w-full p-2 rounded-md border-slate-300 shadow-sm">
-                            {% for state in destino_states %}
-                                <option value="{{ state }}">
-                                    {% if state == 'NENHUM' %}
-                                        Nenhum / Não Aplicar
-                                    {% else %}
-                                        {{ state }}
-                                    {% endif %}
-                                </option>
-                            {% endfor %}
+                            {% for state in destino_states %}<option value="{{ state }}">{% if state == 'NENHUM' %}Nenhum / Não Aplicar{% else %}{{ state }}{% endif %}</option>{% endfor %}
                         </select>
                     </div>
                 </div>
@@ -124,7 +125,6 @@
             </div>
         </div>
     </div>
-
     <div id="resultado-externo" class="mt-8 bg-white p-6 rounded-lg card-shadow hidden">
         <div class="result-display bg-teal-50 border-teal-500 text-center">
             <p class="font-semibold text-slate-700">Preço de Venda Final Sugerido:</p>
@@ -136,40 +136,67 @@
         </div>
     </div>
 </div>
+
+<div id="ncm-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+    <div class="relative top-20 mx-auto p-5 border w-full max-w-3xl shadow-lg rounded-md bg-white">
+        <div class="mt-3 text-center">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Resultados da Busca de NCM</h3>
+            <div class="mt-2 px-7 py-3">
+                <div id="ncm-results-container" class="max-h-96 overflow-y-auto">
+                    </div>
+            </div>
+            <div class="items-center px-4 py-3">
+                <button id="close-modal-btn" class="px-4 py-2 bg-gray-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                    Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // --- ELEMENTOS DO DOM ---
+    // --- 1. SELEÇÃO DOS ELEMENTOS DO HTML ---
+    // Esta seção pega todos os elementos (campos, botões, divs) que vamos manipular.
     const getEl = (id) => document.getElementById(id);
     const allInputs = document.querySelectorAll('input:not([type="hidden"]), select');
     
-    // Campos principais
-    const custoMpInput = getEl('custo-mp'); // Hidden
-    const produtoSelect = getEl('produto');
+    // Elementos do Modal de NCM
+    const ncmModal = getEl('ncm-modal');
+    const ncmResultsContainer = getEl('ncm-results-container');
+    const closeModalBtn = getEl('close-modal-btn');
     
-    // Novos campos manuais
+    // Campos principais do formulário
+    const custoMpInput = getEl('custo-mp');
+    const produtoSelect = getEl('produto');
     const manualFieldsDiv = getEl('manual-entry-fields');
     const manualProductCostInput = getEl('manual-product-cost');
 
-    // Elementos da UI de resultado
+    // Elementos que mostram os resultados
     const telaPrecoVendaDiv = getEl('tela-preco-venda');
     const resultadoInternoDiv = getEl('resultado-interno');
     const custoInternoValorP = getEl('custo-interno-valor');
     const resultadoExternoDiv = getEl('resultado-externo');
     const precoVendaValorP = getEl('preco-venda-valor');
     const detalhesGridDiv = getEl('detalhes-grid');
+    
+    // Elementos específicos da busca de NCM
+    const ncmSearchInput = getEl('ncm-search');
+    const searchNcmBtn = getEl('search-ncm-btn');
+    const mvaInput = getEl('mva');
 
-    // --- FUNÇÕES HELPER ---
+    // --- 2. FUNÇÕES DE AJUDA (HELPERS) ---
+    // Funções pequenas que ajudam a formatar valores ou verificar checkboxes.
     const formatCurrency = (value) => (typeof value === 'number') ? value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
     const isChecked = (id) => getEl(id).checked;
 
-    // --- FUNÇÃO PRINCIPAL DE CÁLCULO (CHAMADA À API) ---
+    // --- 3. FUNÇÃO DE CÁLCULO PRINCIPAL ---
+    // Esta função reúne todos os dados do formulário e os envia para a API no backend.
     async function performCalculation() {
         const custoMP = parseFloat(custoMpInput.value) || 0;
-        
         if (custoMP === 0) {
             resultadoInternoDiv.classList.add('hidden');
             telaPrecoVendaDiv.classList.add('opacity-50');
@@ -177,12 +204,15 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Monta um objeto com todos os valores dos campos do formulário.
         const formData = {
             custo_mp: custoMP,
             ipi: getEl('ipi').value,
             frete_custo: getEl('frete-custo').value,
             margem_bruta: getEl('margem-bruta').value,
-            custo_operacional: getEl('custo-operacional').value,
+            mva: getEl('mva').value,
+            icms_proprio: getEl('icms-proprio').value,
+            icms_st_aliquota: getEl('icms-st-aliquota').value,
             tx_adm: getEl('tx-adm').value,
             irpj_csll: getEl('irpj-csll').value,
             comissao: getEl('comissao').value,
@@ -198,6 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
             helio: isChecked('helio'),
         };
 
+        // Envia os dados para a URL 'calculate_api' e aguarda a resposta.
         try {
             const response = await fetch("{% url 'calculate_api' %}", {
                 method: 'POST',
@@ -206,13 +237,99 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             if (!response.ok) throw new Error(`Erro na API: ${response.statusText}`);
             const results = await response.json();
-            updateUI(results);
+            updateUI(results); // Chama a função para atualizar a tela com os resultados.
         } catch (error) {
             console.error('Falha ao calcular:', error);
         }
     }
 
-    // --- FUNÇÃO PARA ATUALIZAR A INTERFACE ---
+    // --- 4. FUNÇÕES DO MODAL DE NCM ---
+
+    // Função que é chamada quando o botão "Buscar MVA" é clicado.
+    async function searchNcm() {
+        const ncm = ncmSearchInput.value;
+        if (!ncm) {
+            alert('Por favor, digite um NCM.');
+            return;
+        }
+
+        searchNcmBtn.textContent = 'Buscando...';
+        searchNcmBtn.disabled = true;
+
+        try {
+            // Chama a API de busca de NCM no backend.
+            const response = await fetch(`/api/search_ncm/?ncm=${ncm}`);
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Erro desconhecido');
+            
+            // Se a busca for bem-sucedida, chama a função para exibir os resultados.
+            displayNcmResults(data);
+
+        } catch (error) {
+            console.error('Erro ao buscar NCM:', error);
+            alert(error.message);
+        } finally {
+            searchNcmBtn.textContent = 'Buscar MVA';
+            searchNcmBtn.disabled = false;
+        }
+    }
+    
+    // Função que cria a tabela de resultados dentro do modal.
+    function displayNcmResults(results) {
+        ncmResultsContainer.innerHTML = ''; // Limpa a tabela antiga.
+        if (!results || results.length === 0) {
+            ncmResultsContainer.innerHTML = '<p class="text-slate-500">Nenhum resultado encontrado.</p>';
+            ncmModal.classList.remove('hidden');
+            return;
+        }
+
+        // Cria a estrutura da tabela dinamicamente.
+        const table = document.createElement('table');
+        table.className = 'min-w-full divide-y divide-gray-200';
+        table.innerHTML = `
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NCM/SH</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MVA (%)</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ação</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200"></tbody>
+        `;
+
+        // Preenche a tabela com os dados recebidos da API.
+        const tbody = table.querySelector('tbody');
+        results.forEach(item => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.ncm_sh}</td>
+                <td class="px-6 py-4 whitespace-normal text-sm text-gray-500 text-left">${item.descricao}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.mva.toFixed(2)}%</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <button class="select-ncm-btn text-indigo-600 hover:text-indigo-900" data-mva="${item.mva}">Selecionar</button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        ncmResultsContainer.appendChild(table);
+        ncmModal.classList.remove('hidden'); // Mostra o modal.
+    }
+
+    // Função que é chamada quando o botão "Selecionar" de uma linha é clicado.
+    function selectNcm(event) {
+        if (event.target.classList.contains('select-ncm-btn')) {
+            const mvaValue = event.target.getAttribute('data-mva'); // Pega o valor do MVA do botão.
+            mvaInput.value = parseFloat(mvaValue).toFixed(2); // Coloca o valor no campo MVA (%).
+            ncmModal.classList.add('hidden'); // Esconde o modal.
+            performCalculation(); // Roda o cálculo principal novamente com o novo valor de MVA.
+        }
+    }
+
+    // --- 5. FUNÇÕES PARA ATUALIZAR A TELA ---
+
+    // Pega os resultados do cálculo e atualiza os campos na tela.
     function updateUI(results) {
         telaPrecoVendaDiv.classList.remove('opacity-50');
         resultadoInternoDiv.classList.remove('hidden');
@@ -221,7 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
         precoVendaValorP.textContent = formatCurrency(results.preco_venda_final);
         detalhesGridDiv.innerHTML = '';
         for (const [key, value] of Object.entries(results.detalhes)) {
-            if (key === 'Frete de Venda' && value === 0) continue;
+            if (value === 0 && !key.includes('Lucro')) continue;
             const percent = (results.preco_venda_final > 0) ? (value / results.preco_venda_final * 100).toFixed(2) : 0;
             const detailItem = document.createElement('div');
             let valueColorClass = 'text-slate-800';
@@ -233,7 +350,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // --- LÓGICA DE UI ADICIONAL ---
+    // Controla a lógica de seleção de estados.
     function handleStateChange() {
         const estadoDestinoSelect = getEl('estado-destino');
         if (estadoDestinoSelect.value !== 'NENHUM') {
@@ -246,49 +363,47 @@ document.addEventListener('DOMContentLoaded', () => {
         performCalculation();
     }
 
-    // --- EVENT LISTENERS (ATUALIZADOS) ---
+    // --- 6. EVENT LISTENERS (OUVINTES DE EVENTOS) ---
+    // Esta seção "amarra" as funções aos eventos (cliques, digitação, etc.).
+    
+    // Para o modal de NCM
+    searchNcmBtn.addEventListener('click', searchNcm); // Botão "Buscar MVA".
+    closeModalBtn.addEventListener('click', () => ncmModal.classList.add('hidden')); // Botão "Fechar" do modal.
+    ncmResultsContainer.addEventListener('click', selectNcm); // Botões "Selecionar" dentro do modal.
 
-    // Listener principal para o seletor de produtos
+    // Para o seletor de produtos e entrada manual
     produtoSelect.addEventListener('change', () => {
         const selectedValue = produtoSelect.value;
-        
         if (selectedValue === 'manual') {
-            // Mostra os campos manuais
             manualFieldsDiv.classList.remove('hidden');
-            custoMpInput.value = ''; // Limpa o custo anterior
-            manualProductCostInput.value = ''; // Limpa o campo de custo manual
-            getEl('manual-product-name').focus(); // Foca no campo de nome
+            custoMpInput.value = ''; 
+            manualProductCostInput.value = '';
+            getEl('manual-product-name').focus();
         } else {
-            // Esconde os campos manuais
             manualFieldsDiv.classList.add('hidden');
             const selectedOption = produtoSelect.options[produtoSelect.selectedIndex];
-            const custo = selectedOption.dataset.custo || 0;
-            custoMpInput.value = parseFloat(custo).toFixed(2);
+            custoMpInput.value = parseFloat(selectedOption.dataset.custo || 0).toFixed(2);
         }
-        // Dispara o cálculo em ambos os casos para atualizar a UI
+        performCalculation();
+    });
+    manualProductCostInput.addEventListener('input', () => {
+        custoMpInput.value = manualProductCostInput.value;
         performCalculation();
     });
 
-    // Listener para o campo de CUSTO manual
-    manualProductCostInput.addEventListener('input', () => {
-        // Quando o usuário digita o custo manual, atualiza o campo oculto
-        custoMpInput.value = manualProductCostInput.value;
-        performCalculation(); // E recalcula tudo
-    });
-
-    // Listeners para os outros campos do formulário
+    // Para todos os outros campos do formulário
     allInputs.forEach(input => {
-        // Ignora os campos que já têm listeners específicos para evitar duplicidade
-        if (input.id !== 'produto' && input.id !== 'manual-product-cost') { 
+        if (!['produto', 'manual-product-cost', 'ncm-search'].includes(input.id)) { 
+            const eventType = (input.tagName === 'SELECT' || input.type === 'checkbox') ? 'change' : 'input';
             if (input.id === 'estado-destino') {
-                input.addEventListener('input', handleStateChange);
+                input.addEventListener('change', handleStateChange);
             } else {
-                input.addEventListener('input', performCalculation);
+                input.addEventListener(eventType, performCalculation);
             }
         }
     });
 
-    // Iniciar com a tela limpa
+    // Inicia a calculadora com a tela limpa.
     performCalculation();
 });
 </script>

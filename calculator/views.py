@@ -1,10 +1,11 @@
+# gabrieldevmoraes/sistema-precificacao/sistema-precificacao-4897d9676849616ba71945fe56a5b8efafbd22fa/calculator/views.py
+
 import json
 import requests
 from bs4 import BeautifulSoup
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_GET
-
 from django.contrib import messages
 
 # Importa os modelos e formulários
@@ -48,7 +49,7 @@ def calculator_view(request):
 @require_GET
 def search_ncm_api_view(request):
     """
-    API para buscar um NCM no site da Sefaz-MT e retornar o MVA.
+    API para buscar um NCM no site da Sefaz-MT e retornar uma LISTA de correspondências.
     """
     ncm_query = request.GET.get('ncm', '').strip()
     if not ncm_query:
@@ -71,17 +72,29 @@ def search_ncm_api_view(request):
 
         rows = tabelas[1].find_all('tr')
         
+        results = []
         for row in rows:
             cols = row.find_all('td')
-            if len(cols) > 1 and ncm_query in cols[0].get_text(strip=True):
+            # Verifica se a linha tem as 3 colunas que precisamos e se o NCM bate
+            if len(cols) >= 3 and ncm_query in cols[0].get_text(strip=True):
+                ncm_sh = cols[0].get_text(strip=True)
                 mva_text = cols[1].get_text(strip=True).replace('%', '').replace(',', '.').strip()
+                descricao = cols[2].get_text(strip=True)
+                
                 try:
                     mva_value = float(mva_text)
-                    return JsonResponse({'ncm': ncm_query, 'mva': mva_value})
+                    results.append({
+                        'ncm_sh': ncm_sh,
+                        'descricao': descricao,
+                        'mva': mva_value
+                    })
                 except ValueError:
                     continue
+        
+        if not results:
+            return JsonResponse({'error': f'Nenhuma correspondência encontrada para o NCM {ncm_query} na tabela da Sefaz-MT.'}, status=404)
 
-        return JsonResponse({'error': f'NCM {ncm_query} não encontrado na tabela da Sefaz-MT.'}, status=404)
+        return JsonResponse(results, safe=False) # Retorna a lista de resultados
 
     except requests.exceptions.RequestException as e:
         return JsonResponse({'error': f'Erro de conexão ao tentar acessar o site da Sefaz: {str(e)}'}, status=500)
