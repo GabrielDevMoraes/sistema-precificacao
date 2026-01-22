@@ -50,8 +50,21 @@
             <h2 class="text-2xl font-bold text-teal-700 border-b pb-2 mb-4">2. Análise do Preço de Venda</h2>
             <div id="externo-form" class="space-y-4">
                 <div>
-                    <label for="margem-bruta" class="block text-sm font-medium text-slate-700">Margem Bruta / Markup (%)</label>
-                    <input type="number" id="margem-bruta" value="140" class="mt-1 block w-full p-2 rounded-md border-slate-300 shadow-sm">
+                    <label for="margem-liquida" class="block text-sm font-medium text-slate-700">
+                        Margem Líquida (%)
+                    </label>
+                    <input
+                        type="number"
+                        id="margem-liquida"
+                        step="0.01"
+                        placeholder="Ex: 20"
+                        class="mt-1 block w-full p-2 rounded-md border-slate-300 shadow-sm"
+                    />
+                </div>
+                
+                <div>
+                    <label for="frete-venda" class="block text-sm font-medium text-slate-700">Frete de Venda (R$)</label>
+                    <input type="number" id="frete-venda" value="0" step="0.01" class="mt-1 block w-full p-2 rounded-md border-slate-300 shadow-sm">
                 </div>
                 <h3 class="section-title">Substituição Tributária (ST)</h3>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4">
@@ -125,16 +138,54 @@
             </div>
         </div>
     </div>
-    <div id="resultado-externo" class="mt-8 bg-white p-6 rounded-lg card-shadow hidden">
+    <button
+        type="button"
+        id="btn-salvar-produto"
+        class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-md shadow">
+        💾 Salvar Produto
+    </button>
+
+        <div id="resultado-externo"
+        class="mt-8 bg-white p-6 rounded-lg card-shadow hidden">
+
         <div class="result-display bg-teal-50 border-teal-500 text-center">
-            <p class="font-semibold text-slate-700">Preço de Venda Final Sugerido:</p>
-            <p id="preco-venda-valor" class="result-value text-teal-800"></p>
+            <p class="font-semibold text-slate-700">
+                Preço de Venda Final Sugerido:
+            </p>
+            <p id="preco-venda-valor"
+            class="result-value text-teal-800"></p>
         </div>
+
         <div id="detalhes-venda" class="mt-6">
-            <h4 class="text-xl font-bold mb-4 text-slate-700 text-center">Detalhamento do Preço</h4>
+            <h4 class="text-xl font-bold mb-4 text-slate-700 text-center">
+                Detalhamento do Preço
+            </h4>
+
+            <!-- 🔥 OPÇÃO 2 – IMPACTO ICMS-ST -->
+            <div id="icms-st-impacto-card"
+                class="p-4 mb-6 bg-orange-50 border-l-4 border-orange-500 rounded-lg hidden">
+
+                <p class="text-sm text-orange-700 font-semibold">
+                    Impacto do ICMS-ST sobre a mercadoria
+                </p>
+
+                <div class="flex items-end gap-2 mt-1">
+                    <span id="icms-st-impacto-pct"
+                        class="text-3xl font-bold text-orange-600"></span>
+                    <span class="text-sm text-orange-600 mb-1">%</span>
+                </div>
+
+                <p class="text-sm text-slate-600 mt-1">
+                    Valor recolhido:
+                    <strong id="icms-st-impacto-valor"></strong>
+                </p>
+            </div>
+            <!-- 🔥 FIM OPÇÃO 2 -->
+
             <div id="detalhes-grid" class="details-grid"></div>
         </div>
     </div>
+
 </div>
 
 <div id="ncm-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
@@ -154,62 +205,89 @@
     </div>
 </div>
 {% endblock %}
+<div id="toast-sucesso"
+     class="fixed bottom-5 right-5 bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg hidden z-50">
+    Produto salvo com sucesso ✔️
+</div>
 
 
 {% block scripts %}
 <script>
+
+
 document.addEventListener('DOMContentLoaded', () => {
-    // --- 1. SELEÇÃO DOS ELEMENTOS DO HTML ---
-    // Esta seção pega todos os elementos (campos, botões, divs) que vamos manipular.
+
+    /* ===============================
+       1. HELPERS E ELEMENTOS
+    =============================== */
+
     const getEl = (id) => document.getElementById(id);
+    const formatCurrency = (value) =>
+        typeof value === 'number'
+            ? value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+            : '';
+
+    const isChecked = (id) => getEl(id)?.checked || false;
+
     const allInputs = document.querySelectorAll('input:not([type="hidden"]), select');
-    
-    // Elementos do Modal de NCM
-    const ncmModal = getEl('ncm-modal');
-    const ncmResultsContainer = getEl('ncm-results-container');
-    const closeModalBtn = getEl('close-modal-btn');
-    
-    // Campos principais do formulário
+
+    /* ===============================
+       2. ELEMENTOS PRINCIPAIS
+    =============================== */
+
     const custoMpInput = getEl('custo-mp');
     const produtoSelect = getEl('produto');
     const manualFieldsDiv = getEl('manual-entry-fields');
     const manualProductCostInput = getEl('manual-product-cost');
 
-    // Elementos que mostram os resultados
+
     const telaPrecoVendaDiv = getEl('tela-preco-venda');
     const resultadoInternoDiv = getEl('resultado-interno');
-    const custoInternoValorP = getEl('custo-interno-valor');
     const resultadoExternoDiv = getEl('resultado-externo');
+    const custoInternoValorP = getEl('custo-interno-valor');
     const precoVendaValorP = getEl('preco-venda-valor');
     const detalhesGridDiv = getEl('detalhes-grid');
-    
-    // Elementos específicos da busca de NCM
+
+    /* ===============================
+       3. MODAL DE NCM
+    =============================== */
+
+    const ncmModal = getEl('ncm-modal');
+    const ncmResultsContainer = getEl('ncm-results-container');
+    const closeModalBtn = getEl('close-modal-btn');
     const ncmSearchInput = getEl('ncm-search');
     const searchNcmBtn = getEl('search-ncm-btn');
     const mvaInput = getEl('mva');
 
-    // --- 2. FUNÇÕES DE AJUDA (HELPERS) ---
-    // Funções pequenas que ajudam a formatar valores ou verificar checkboxes.
-    const formatCurrency = (value) => (typeof value === 'number') ? value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
-    const isChecked = (id) => getEl(id).checked;
+    /* ===============================
+       4. FUNÇÃO PRINCIPAL DE CÁLCULO
+    =============================== */
 
-    // --- 3. FUNÇÃO DE CÁLCULO PRINCIPAL ---
-    // Esta função reúne todos os dados do formulário e os envia para a API no backend.
     async function performCalculation() {
         const custoMP = parseFloat(custoMpInput.value) || 0;
-        if (custoMP === 0) {
+        const margemLiquida =
+            parseFloat(getEl('margem-liquida').value) || 20;
+
+
+        if (custoMP === 0 || isNaN(margemLiquida) || margemLiquida <= 0) {
             resultadoInternoDiv.classList.add('hidden');
-            telaPrecoVendaDiv.classList.add('opacity-50');
             resultadoExternoDiv.classList.add('hidden');
+            telaPrecoVendaDiv.classList.add('opacity-50');
             return;
         }
 
-        // Monta um objeto com todos os valores dos campos do formulário.
+
         const formData = {
             custo_mp: custoMP,
             ipi: getEl('ipi').value,
             frete_custo: getEl('frete-custo').value,
-            margem_bruta: getEl('margem-bruta').value,
+            margem_liquida: margemLiquida,
+            ncm: getEl('ncm-search').value || null,
+            mva: mvaInput.value,
+            
+            produto_id: produtoSelect.value || null,
+            produto_nome_manual: getEl('manual-product-name')?.value || null,
+            salvar_produto: salvarProduto,
             mva: getEl('mva').value,
             icms_proprio: getEl('icms-proprio').value,
             icms_st_aliquota: getEl('icms-st-aliquota').value,
@@ -226,134 +304,164 @@ document.addEventListener('DOMContentLoaded', () => {
             abrange_volus: isChecked('abrange-volus'),
             troca: isChecked('troca'),
             helio: isChecked('helio'),
+            
         };
 
-        // Envia os dados para a URL 'calculate_api' e aguarda a resposta.
         try {
             const response = await fetch("{% url 'calculate_api' %}", {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
                 body: JSON.stringify(formData),
             });
-            if (!response.ok) throw new Error(`Erro na API: ${response.statusText}`);
+
+            if (!response.ok) throw new Error('Erro na API');
+
             const results = await response.json();
-            updateUI(results); // Chama a função para atualizar a tela com os resultados.
+            updateUI(results);
+
         } catch (error) {
-            console.error('Falha ao calcular:', error);
+            console.error('Erro no cálculo:', error);
+        }
+        finally {
+            salvarProduto = false;
+        }
+
+    }
+
+    /* ===============================
+       5. ATUALIZAÇÃO DA UI
+    =============================== */
+
+    function updateUI(results) {
+        const precoFinal = Number(results.preco_venda_final) || 0;
+        const custoTotal = Number(results.custo_total_produto) || 0;
+
+        telaPrecoVendaDiv.classList.remove('opacity-50');
+        resultadoInternoDiv.classList.remove('hidden');
+        resultadoExternoDiv.classList.remove('hidden');
+
+        custoInternoValorP.textContent = formatCurrency(custoTotal);
+        precoVendaValorP.textContent = formatCurrency(precoFinal);
+
+        detalhesGridDiv.innerHTML = '';
+
+
+        for (const [key, value] of Object.entries(results.detalhes)) {
+            if (value === 0 && !key.includes('Lucro')) continue;
+        
+            const percent = precoFinal > 0
+            ? (Number(value) / precoFinal * 100).toFixed(2)
+            : 0;
+
+
+            let color = 'text-slate-800';
+            if (key.includes('Lucro Líquido') && value < 0) color = 'text-red-600';
+            else if (key.includes('Lucro')) color = 'text-green-600';
+
+            const div = document.createElement('div');
+            div.className = 'p-3 bg-slate-100 rounded-lg shadow-sm';
+            div.innerHTML = `
+                <p class="text-sm font-medium text-slate-600">${key}</p>
+                <p class="font-bold ${color} text-lg">${formatCurrency(Number(value))}</p>
+                <span class="text-xs text-slate-500">${percent}%</span>
+            `;
+            detalhesGridDiv.appendChild(div);
+        }
+        if (results.st_detalhado) {
+            const st = results.st_detalhado;
+
+            const impactoPct = Number(st.impacto_st_percentual) || 0;
+            const valorSt = Number(st.icms_st_valor) || 0;
+
+            if (impactoPct > 0) {
+                getEl('icms-st-impacto-pct').textContent =
+                    impactoPct.toFixed(2);
+
+                getEl('icms-st-impacto-valor').textContent =
+                    formatCurrency(valorSt);
+
+                getEl('icms-st-impacto-card')
+                    .classList.remove('hidden');
+            }
         }
     }
 
-    // --- 4. FUNÇÕES DO MODAL DE NCM ---
+    /* ===============================
+       6. FRETE (EXCLUSIVO)
+    =============================== */
 
-    // Função que é chamada quando o botão "Buscar MVA" é clicado.
+    const freteLeve = getEl('frete-leve');
+    const fretePesado = getEl('frete-pesado');
+
+    freteLeve.addEventListener('change', () => {
+        if (freteLeve.checked) fretePesado.checked = false;
+        performCalculation();
+    });
+
+    fretePesado.addEventListener('change', () => {
+        if (fretePesado.checked) freteLeve.checked = false;
+        performCalculation();
+    });
+
+    /* ===============================
+       7. NCM / MVA
+    =============================== */
+
     async function searchNcm() {
-        const ncm = ncmSearchInput.value;
-        if (!ncm) {
-            alert('Por favor, digite um NCM.');
-            return;
-        }
+        const ncm = ncmSearchInput.value.trim();
+        if (!ncm) return alert('Digite um NCM');
 
-        searchNcmBtn.textContent = 'Buscando...';
         searchNcmBtn.disabled = true;
+        searchNcmBtn.textContent = 'Buscando...';
 
         try {
-            // Chama a API de busca de NCM no backend.
             const response = await fetch(`/api/search_ncm/?ncm=${ncm}`);
             const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Erro desconhecido');
-            
-            // Se a busca for bem-sucedida, chama a função para exibir os resultados.
             displayNcmResults(data);
-
-        } catch (error) {
-            console.error('Erro ao buscar NCM:', error);
-            alert(error.message);
+        } catch (e) {
+            alert('Erro ao buscar NCM');
         } finally {
-            searchNcmBtn.textContent = 'Buscar MVA';
             searchNcmBtn.disabled = false;
+            searchNcmBtn.textContent = 'Buscar MVA';
         }
     }
-    
-    // Função que cria a tabela de resultados dentro do modal.
+
     function displayNcmResults(results) {
-        ncmResultsContainer.innerHTML = ''; // Limpa a tabela antiga.
-        if (!results || results.length === 0) {
-            ncmResultsContainer.innerHTML = '<p class="text-slate-500">Nenhum resultado encontrado.</p>';
+        ncmResultsContainer.innerHTML = '';
+
+        if (!results.length) {
+            ncmResultsContainer.innerHTML = '<p>Nenhum resultado encontrado</p>';
             ncmModal.classList.remove('hidden');
             return;
         }
 
-        // Cria a estrutura da tabela dinamicamente.
-        const table = document.createElement('table');
-        table.className = 'min-w-full divide-y divide-gray-200';
-        table.innerHTML = `
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NCM/SH</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MVA (%)</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ação</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200"></tbody>
-        `;
-
-        // Preenche a tabela com os dados recebidos da API.
-        const tbody = table.querySelector('tbody');
         results.forEach(item => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.ncm_sh}</td>
-                <td class="px-6 py-4 whitespace-normal text-sm text-gray-500 text-left">${item.descricao}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.mva.toFixed(2)}%</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button class="select-ncm-btn text-indigo-600 hover:text-indigo-900" data-mva="${item.mva}">Selecionar</button>
-                </td>
-            `;
-            tbody.appendChild(row);
+            const btn = document.createElement('button');
+            btn.className = 'block w-full text-left p-2 hover:bg-slate-100';
+            btn.textContent = `${item.ncm_sh} — ${item.descricao} (${item.mva.toFixed(2)}%)`;
+            btn.onclick = () => {
+                mvaInput.value = item.mva.toFixed(2);
+                ncmModal.classList.add('hidden');
+                performCalculation();
+            };
+            ncmResultsContainer.appendChild(btn);
         });
 
-        ncmResultsContainer.appendChild(table);
-        ncmModal.classList.remove('hidden'); // Mostra o modal.
+        ncmModal.classList.remove('hidden');
     }
 
-    // Função que é chamada quando o botão "Selecionar" de uma linha é clicado.
-    function selectNcm(event) {
-        if (event.target.classList.contains('select-ncm-btn')) {
-            const mvaValue = event.target.getAttribute('data-mva'); // Pega o valor do MVA do botão.
-            mvaInput.value = parseFloat(mvaValue).toFixed(2); // Coloca o valor no campo MVA (%).
-            ncmModal.classList.add('hidden'); // Esconde o modal.
-            performCalculation(); // Roda o cálculo principal novamente com o novo valor de MVA.
-        }
-    }
+    closeModalBtn.addEventListener('click', () => ncmModal.classList.add('hidden'));
+    searchNcmBtn.addEventListener('click', searchNcm);
 
-    // --- 5. FUNÇÕES PARA ATUALIZAR A TELA ---
+    /* ===============================
+       8. ESTADOS (DIFAL)
+    =============================== */
 
-    // Pega os resultados do cálculo e atualiza os campos na tela.
-    function updateUI(results) {
-        telaPrecoVendaDiv.classList.remove('opacity-50');
-        resultadoInternoDiv.classList.remove('hidden');
-        resultadoExternoDiv.classList.remove('hidden');
-        custoInternoValorP.textContent = formatCurrency(results.custo_total_produto);
-        precoVendaValorP.textContent = formatCurrency(results.preco_venda_final);
-        detalhesGridDiv.innerHTML = '';
-        for (const [key, value] of Object.entries(results.detalhes)) {
-            if (value === 0 && !key.includes('Lucro')) continue;
-            const percent = (results.preco_venda_final > 0) ? (value / results.preco_venda_final * 100).toFixed(2) : 0;
-            const detailItem = document.createElement('div');
-            let valueColorClass = 'text-slate-800';
-            if (key.includes('Lucro Líquido') && value < 0) valueColorClass = 'text-red-600';
-            else if (key.includes('Lucro')) valueColorClass = 'text-green-600';
-            detailItem.className = 'p-3 bg-slate-100 rounded-lg shadow-sm detail-item';
-            detailItem.innerHTML = `<p class="text-sm font-medium text-slate-600">${key}</p><div class="detail-value mt-1"><p class="font-bold ${valueColorClass} text-lg">${formatCurrency(value)}</p><span class="detail-percentage">${percent}%</span></div>`;
-            detalhesGridDiv.appendChild(detailItem);
-        }
-    }
-    
-    // Controla a lógica de seleção de estados.
     function handleStateChange() {
-        const estadoDestinoSelect = getEl('estado-destino');
-        if (estadoDestinoSelect.value !== 'NENHUM') {
+        if (getEl('estado-destino').value !== 'NENHUM') {
             getEl('estado-origem').value = 'MT';
             getEl('calc-difal').checked = true;
         } else {
@@ -363,48 +471,51 @@ document.addEventListener('DOMContentLoaded', () => {
         performCalculation();
     }
 
-    // --- 6. EVENT LISTENERS (OUVINTES DE EVENTOS) ---
-    // Esta seção "amarra" as funções aos eventos (cliques, digitação, etc.).
-    
-    // Para o modal de NCM
-    searchNcmBtn.addEventListener('click', searchNcm); // Botão "Buscar MVA".
-    closeModalBtn.addEventListener('click', () => ncmModal.classList.add('hidden')); // Botão "Fechar" do modal.
-    ncmResultsContainer.addEventListener('click', selectNcm); // Botões "Selecionar" dentro do modal.
+    getEl('estado-destino').addEventListener('change', handleStateChange);
 
-    // Para o seletor de produtos e entrada manual
+    
+    /* ===============================
+       9. PRODUTO / MANUAL
+    =============================== */
+
     produtoSelect.addEventListener('change', () => {
-        const selectedValue = produtoSelect.value;
-        if (selectedValue === 'manual') {
+        if (produtoSelect.value === 'manual') {
             manualFieldsDiv.classList.remove('hidden');
-            custoMpInput.value = ''; 
+            custoMpInput.value = '';
             manualProductCostInput.value = '';
-            getEl('manual-product-name').focus();
         } else {
             manualFieldsDiv.classList.add('hidden');
-            const selectedOption = produtoSelect.options[produtoSelect.selectedIndex];
-            custoMpInput.value = parseFloat(selectedOption.dataset.custo || 0).toFixed(2);
+            custoMpInput.value =
+                parseFloat(produtoSelect.selectedOptions[0].dataset.custo || 0).toFixed(2);
         }
         performCalculation();
     });
+
     manualProductCostInput.addEventListener('input', () => {
         custoMpInput.value = manualProductCostInput.value;
         performCalculation();
     });
 
-    // Para todos os outros campos do formulário
+    /* ===============================
+       10. INPUTS GERAIS
+    =============================== */
+
     allInputs.forEach(input => {
-        if (!['produto', 'manual-product-cost', 'ncm-search'].includes(input.id)) { 
-            const eventType = (input.tagName === 'SELECT' || input.type === 'checkbox') ? 'change' : 'input';
-            if (input.id === 'estado-destino') {
-                input.addEventListener('change', handleStateChange);
-            } else {
-                input.addEventListener(eventType, performCalculation);
-            }
+        if (!['produto', 'manual-product-cost', 'ncm-search'].includes(input.id)) {
+            const evt = (input.type === 'checkbox' || input.tagName === 'SELECT') ? 'change' : 'input';
+            input.addEventListener(evt, performCalculation);
         }
     });
 
-    // Inicia a calculadora com a tela limpa.
+    let salvarProduto = false;
+    getEl('btn-salvar-produto').addEventListener('click', () => {
+        salvarProduto = true;
+        performCalculation();
+    });
+
+
     performCalculation();
 });
 </script>
+
 {% endblock %}

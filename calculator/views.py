@@ -7,7 +7,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_GET
 from django.contrib import messages
-
+from decimal import Decimal, InvalidOperation
 # Importa os modelos e formulários
 from .models import Produto
 from .forms import ProdutoForm
@@ -45,169 +45,226 @@ def calculator_view(request):
 
 
 # --- API DE BUSCA DE NCM ---
+from .models import NcmMva
 
 @require_GET
 def search_ncm_api_view(request):
-    """
-    API para buscar um NCM no site da Sefaz-MT e retornar uma LISTA de correspondências.
-    """
-    ncm_query = request.GET.get('ncm', '').strip()
+    ncm_query = request.GET.get("ncm", "").replace(".", "").strip()
+
     if not ncm_query:
-        return JsonResponse({'error': 'Nenhum NCM fornecido.'}, status=400)
+        return JsonResponse({"error": "NCM não informado"}, status=400)
 
-    url = 'https://app1.sefaz.mt.gov.br/0325677500623408/7C7B6A9347C50F55032569140065EBBF/4C7283A0B4318486042584C4004436C1'
-    
-    try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    registros = NcmMva.objects.filter(
+        ncm__icontains=ncm_query,
+        ativo=True
+    )[:50]
+
+    return JsonResponse([
+        {
+            "ncm_sh": r.ncm,
+            "descricao": r.descricao,
+            "mva": float(r.mva),
         }
-        response = requests.get(url, headers=headers, timeout=15)
-        response.raise_for_status() 
-
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        tabelas = soup.find_all('table', class_='tabela')
-        if len(tabelas) < 2:
-            return JsonResponse({'error': 'A tabela de dados esperada não foi encontrada no site da Sefaz.'}, status=500)
-
-        rows = tabelas[1].find_all('tr')
-        
-        results = []
-        for row in rows:
-            cols = row.find_all('td')
-            # Verifica se a linha tem as 3 colunas que precisamos e se o NCM bate
-            if len(cols) >= 3 and ncm_query in cols[0].get_text(strip=True):
-                ncm_sh = cols[0].get_text(strip=True)
-                mva_text = cols[1].get_text(strip=True).replace('%', '').replace(',', '.').strip()
-                descricao = cols[2].get_text(strip=True)
-                
-                try:
-                    mva_value = float(mva_text)
-                    results.append({
-                        'ncm_sh': ncm_sh,
-                        'descricao': descricao,
-                        'mva': mva_value
-                    })
-                except ValueError:
-                    continue
-        
-        if not results:
-            return JsonResponse({'error': f'Nenhuma correspondência encontrada para o NCM {ncm_query} na tabela da Sefaz-MT.'}, status=404)
-
-        return JsonResponse(results, safe=False) # Retorna a lista de resultados
-
-    except requests.exceptions.RequestException as e:
-        return JsonResponse({'error': f'Erro de conexão ao tentar acessar o site da Sefaz: {str(e)}'}, status=500)
-    except Exception as e:
-        return JsonResponse({'error': f'Ocorreu um erro inesperado: {str(e)}'}, status=500)
-
+        for r in registros
+    ], safe=False)
 
 # --- API DE CÁLCULO DE PREÇO ---
 
 @require_POST
 def calculate_api_view(request):
-    """API interna para realizar o cálculo de preços, incluindo MVA/ICMS-ST."""
     try:
         data = json.loads(request.body)
 
-        def get_float(key):
-            return float(data.get(key) or 0)
+        # ===============================
+        # HELPERS
+        # ===============================
+        def get_decimal(key, default=0):
+            try:
+                value = data.get(key, default)
+                if value in ("", None):
+                    return Decimal(default)
+                return Decimal(str(value))
+            except (InvalidOperation, TypeError):
+                return Decimal(default)
 
         def get_bool(key):
             return bool(data.get(key))
 
-        # --- Cálculos Base ---
-        custo_mp = get_float('custo_mp')
-        ipi_percentual = get_float('ipi') / 100
-        frete_custo = get_float('frete_custo')
-        
-        base_calculo_ipi_e_mva = custo_mp + frete_custo
-        valor_ipi = base_calculo_ipi_e_mva * ipi_percentual
-        custo_total_produto = base_calculo_ipi_e_mva + valor_ipi
-        
-        markup_percentual = get_float('margem_bruta') / 100
-        lucro_bruto_valor = custo_total_produto * markup_percentual
-        frete_venda_valor = get_float('frete_venda')
-        
-        # --- Cálculo de MVA e ICMS-ST ---
-        mva_percentual = get_float('mva') / 100
-        icms_proprio_percentual = get_float('icms_proprio') / 100
-        icms_st_aliquota_percentual = get_float('icms_st_aliquota') / 100
-        
-        valor_icms_proprio = 0
-        valor_icms_st = 0
-        
-        if mva_percentual > 0:
-            valor_icms_proprio = base_calculo_ipi_e_mva * icms_proprio_percentual
-            base_calculo_st = custo_total_produto * (1 + mva_percentual)
-            valor_icms_st = (base_calculo_st * icms_st_aliquota_percentual) - valor_icms_proprio
-            valor_icms_st = max(0, valor_icms_st) # Garante que não seja negativo
+        # ===============================
+        # DADOS BASE
+        # ===============================
+        custo_mp = get_decimal('custo_mp')
+        frete_custo = get_decimal('frete_custo')
+        ipi_pct = get_decimal('ipi') / 100
 
-        # Preço de venda final agora inclui o ICMS-ST
-        preco_venda_final = custo_total_produto + lucro_bruto_valor + frete_venda_valor + valor_icms_st
-        
-        # --- Outros Custos e Impostos sobre a Venda ---
-        tx_adm_pct = get_float('tx_adm') / 100
-        irpj_csll_pct = get_float('irpj_csll') / 100
-        comissao_pct = get_float('comissao') / 100
-        frete_leve_pct = 0.05 if get_bool('frete_leve') else 0
-        frete_pesado_pct = 0.10 if get_bool('frete_pesado') else 0
-        pis_venda = 0.0065
-        custo_operacional_pct = 0.05
-        cofins_venda = 0.03
-        
+        # Mercadoria + IPI
+        base_sem_mva = custo_mp + frete_custo
+        valor_ipi = base_sem_mva * ipi_pct
+        mercadoria_com_ipi = base_sem_mva + valor_ipi
+
+        # ===============================
+        # ICMS PRÓPRIO
+        # ===============================
+        icms_proprio_pct = get_decimal('icms_proprio') / 100
+        valor_icms_proprio = custo_mp * icms_proprio_pct
+
+        # ===============================
+        # MVA / ICMS-ST
+        # ===============================
+        mva_pct = get_decimal('mva') / 100
+        icms_st_pct = get_decimal('icms_st_aliquota') / 100
+
+        base_st = Decimal('0')
+        valor_icms_st = Decimal('0')
+
+        if mva_pct > 0 and icms_st_pct > 0:
+            base_st = mercadoria_com_ipi * (1 + mva_pct)
+            icms_presumido = base_st * icms_st_pct
+            valor_icms_st = icms_presumido - valor_icms_proprio
+            if valor_icms_st < 0:
+                valor_icms_st = Decimal('0')
+
+        # ===============================
+        # CUSTO TOTAL (produto)
+        # ===============================
+        custo_total_produto = mercadoria_com_ipi + valor_icms_st
+
+        # ===============================
+        # MARGEM LÍQUIDA (OBJETIVO)
+        # ===============================
+        margem_liquida_pct = get_decimal('margem_liquida') / 100
+        if margem_liquida_pct >= 1:
+            return JsonResponse({'error': 'Margem líquida inválida'}, status=400)
+
+        preco_base_venda = custo_total_produto / (1 - margem_liquida_pct)
+        lucro_liquido_base = preco_base_venda - custo_total_produto
+
+        # ===============================
+        # SALVAR / ATUALIZAR PRODUTO
+        # ===============================
+        produto_id = data.get('produto_id')
+        produto_nome_manual = data.get('produto_nome_manual')
+        salvar_produto = data.get('salvar_produto', False)
+        ncm_selecionado = data.get('ncm')
+        if salvar_produto:
+            # Produto selecionado (já existe)
+            if produto_id:
+                try:
+                    produto = Produto.objects.get(
+                        id=produto_id,
+                        proprietario=request.user
+                    )
+                    produto.custo_producao = custo_mp
+                    produto.ncm = ncm_selecionado
+                    produto.save(update_fields=['custo_producao', 'ncm'])
+                except Produto.DoesNotExist:
+                    pass
+
+            # Produto digitado manualmente
+            elif produto_nome_manual:
+                nome_limpo = produto_nome_manual.strip()
+
+                if nome_limpo:
+                    produto, created = Produto.objects.get_or_create(
+                        proprietario=request.user,
+                        nome__iexact=nome_limpo,
+                        defaults={
+                            'nome': nome_limpo,
+                            'custo_producao': custo_mp,
+                            'ncm':ncm_selecionado
+                        }
+                    )
+
+                    if not created:
+                        produto.custo_producao = custo_mp
+                        produto.ncm = ncm_selecionado
+                        produto.save(update_fields=['custo_producao', 'ncm'])
+
+
+        # ===============================
+        # OUTROS CUSTOS SOBRE VENDA
+        # ===============================
+        preco = preco_base_venda
+
+        custos_pct = (
+            get_decimal('tx_adm') / 100 +
+            get_decimal('irpj_csll') / 100 +
+            get_decimal('comissao') / 100 +
+            (Decimal('0.05') if get_bool('frete_leve') else Decimal('0')) +
+            (Decimal('0.10') if get_bool('frete_pesado') else Decimal('0')) +
+            Decimal('0.0065') +  # PIS
+            Decimal('0.03')      # COFINS
+        )
+
         estado_origem = data.get('estado_origem')
         estado_destino = data.get('estado_destino')
-        
-        icms_percentual = 0
+
+        icms_saida_pct = Decimal('0')
         if get_bool('icms_saida_checkbox') and estado_origem == estado_destino and estado_origem != 'NENHUM':
-            icms_percentual = 0.12
-        elif estado_destino in ALIQUOTAS_ICMS:
-            icms_percentual = ALIQUOTAS_ICMS[estado_destino]
-            
-        difal_percentual = 0
+            icms_saida_pct = Decimal('0.12')
+
+        difal_pct = Decimal('0')
         if get_bool('calc_difal') and estado_origem != estado_destino and estado_destino != 'NENHUM':
-            difal_map = {'RO': 0.075, 'MS': 0.075, 'RS': 0.05, 'MG': 0.06}
-            difal_percentual = difal_map.get(estado_destino, 0)
-            
-        abrange_volus_pct = 0.10 if get_bool('abrange_volus') else 0
-        troca_pct = 0.10 if get_bool('troca') else 0
-        helio_pct = 0.02 if get_bool('helio') else 0
-        
-        valor_outros_custos = preco_venda_final * (custo_operacional_pct + tx_adm_pct + irpj_csll_pct + comissao_pct + frete_leve_pct + frete_pesado_pct + pis_venda + cofins_venda)
-        valor_icms = preco_venda_final * icms_percentual
-        valor_difal = preco_venda_final * difal_percentual
-        valor_abrange = preco_venda_final * abrange_volus_pct
-        valor_troca = preco_venda_final * troca_pct
-        valor_helio = preco_venda_final * helio_pct
-        
-        valor_total_custos_analise = valor_outros_custos + valor_icms + valor_difal + valor_abrange + valor_troca + valor_helio + valor_icms_proprio
-        lucro_liquido_estimado = lucro_bruto_valor - valor_total_custos_analise
-        
-        response_data = {
-            'custo_total_produto': custo_total_produto,
-            'preco_venda_final': preco_venda_final,
+            difal_pct = Decimal('0.075')
+
+        extras_pct = (
+            icms_saida_pct +
+            difal_pct +
+            (Decimal('0.10') if get_bool('abrange_volus') else Decimal('0')) +
+            (Decimal('0.10') if get_bool('troca') else Decimal('0')) +
+            (Decimal('0.02') if get_bool('helio') else Decimal('0'))
+        )
+
+        valor_outros_custos = preco * (custos_pct + extras_pct)
+
+        # ===============================
+        # PREÇO FINAL
+        # ===============================
+        frete_venda = get_decimal('frete_venda')
+        preco_venda_final = preco + frete_venda
+
+        lucro_liquido_final = lucro_liquido_base - valor_outros_custos
+
+        # ===============================
+        # RESPOSTA
+        # ===============================
+        return JsonResponse({
+            'custo_total_produto': round(custo_total_produto, 2),
+            'preco_venda_final': round(preco_venda_final, 2),
+            'produto_salvo': salvar_produto,
+
+
+            'st_detalhado': {
+                'mercadoria': round(custo_mp, 2),
+                'ipi_valor': round(valor_ipi, 2),
+                'ipi_percentual': round(ipi_pct * 100, 2),
+                'mercadoria_com_ipi': round(mercadoria_com_ipi, 2),
+
+                'icms_proprio_valor': round(valor_icms_proprio, 2),
+                'icms_proprio_percentual': round(icms_proprio_pct * 100, 2),
+
+                'mva_percentual': round(mva_pct * 100, 2),
+                'base_st': round(base_st, 2),
+                'icms_st_valor': round(valor_icms_st, 2),
+
+                'impacto_st_percentual': round(
+                    (valor_icms_st / custo_mp * 100) if custo_mp > 0 else 0,
+                    2
+                )
+            },
+
             'detalhes': {
-                'Custo do Produto': custo_total_produto,
-                'Lucro Bruto (Markup)': lucro_bruto_valor,
-                'ICMS Próprio': valor_icms_proprio,
-                'ICMS-ST': valor_icms_st,
-                'Outros Custos Operacionais': valor_outros_custos,
-                'ICMS Saída': valor_icms,
-                'DIFAL': valor_difal,
-                'Abrange/Volus': valor_abrange,
-                'Troca': valor_troca,
-                'Hélio': valor_helio,
-                'Lucro Líquido (Estimado)': lucro_liquido_estimado,
-                'Frete de Venda': frete_venda_valor,
+                'Custo do Produto': round(custo_total_produto, 2),
+                'ICMS Próprio': round(valor_icms_proprio, 2),
+                'ICMS-ST': round(valor_icms_st, 2),
+                'Outros Custos Operacionais': round(valor_outros_custos, 2),
+                'Lucro Líquido Final': round(lucro_liquido_final, 2),
             }
-        }
-        
-        return JsonResponse(response_data)
+        })
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
-
+    
 
 # --- VIEWS PARA GESTÃO DE PRODUTOS (CRUD) ---
 

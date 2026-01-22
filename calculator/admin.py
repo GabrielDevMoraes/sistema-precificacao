@@ -8,3 +8,12 @@ class ProdutoAdmin(admin.ModelAdmin):
     list_display = ('nome', 'sku', 'custo_producao', 'proprietario')
     search_fields = ('nome', 'sku')
     list_filter = ('proprietario',)
+
+
+from .models import NcmMva
+
+@admin.register(NcmMva)
+class NcmMvaAdmin(admin.ModelAdmin):
+    list_display = ('ncm', 'mva', 'portaria', 'ativo')
+    search_fields = ('ncm', 'descricao')
+    list_filter = ('ativo', 'portaria')

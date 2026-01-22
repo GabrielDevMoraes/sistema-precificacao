@@ -13,7 +13,7 @@ class Produto(models.Model):
         decimal_places=2, 
         help_text="Custo de Material + Produção do produto"
     )
-    
+    ncm = models.CharField(max_length=10, blank=True, null=True)
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
 
@@ -22,3 +22,22 @@ class Produto(models.Model):
 
     class Meta:
         ordering = ['nome']
+
+class NcmMva(models.Model):
+    ncm = models.CharField(max_length=8, db_index=True)
+    descricao = models.TextField()
+    mva = models.DecimalField(max_digits=6, decimal_places=2)
+
+    portaria = models.CharField(max_length=50)
+    inicio_vigencia = models.DateField()
+
+    ativo = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['ncm']
+        unique_together = ('ncm', 'portaria')
+
+    def __str__(self):
+        return f"{self.ncm} - {self.mva}%"
+
